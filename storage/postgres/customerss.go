@@ -1,4 +1,4 @@
-package storage
+package postgres
 
 import (
 	model "cars_with_sql/models"
@@ -18,7 +18,7 @@ func Newcustomer(db *sql.DB) customerRepo {
 		db: db,
 	}
 }
-func (c *customerRepo) Createcuss(customer model.Customers) (string, error) {
+func (c *customerRepo) CreateCus(customer model.Customers) (string, error) {
 
 	id := uuid.New()
 
@@ -33,6 +33,7 @@ func (c *customerRepo) Createcuss(customer model.Customers) (string, error) {
 
 	_, err := c.db.Exec(query,
 		id.String(),
+
 		customer.First_name,
 		customer.Last_name,
 		customer.Gmail,
@@ -72,93 +73,261 @@ func (c *customerRepo) Updatecus(customer model.Customers) (string, error) {
 
 	return customer.Id, nil
 }
-
-func (c *customerRepo) GETallcus(search string) (model.GetAllCustomersResponse, error) {
-
-	var (
-		resp   = model.GetAllCustomersResponse{}
-		filter = ""
-	)
+func (c *customerRepo) GetAllCustomers(search string) (model.GetAllCustomersResponse, error) {
+	resp := model.GetAllCustomersResponse{}
+	filter := ""
 
 	if search != "" {
-		filter += fmt.Sprintf(` and name ILIKE  '%%%v%%' `, search)
+		filter = fmt.Sprintf(` AND first_name ILIKE '%%%v%%' `, search)
 	}
 
 	fmt.Println("filter: ", filter)
 
-	rows, err := c.db.Query(`select 
-				count(id) OVER(),
-				id ,
-				first_name, 
-				last_name ,
-				gmail, 
-				phone,
-				is_blocked,
-				created_at::date,
-				updated_at
-	  FROM customerss WHERE deleted_at = 0 ` + filter + ``)
+	query := `
+        SELECT 
+		count(id) OVER(),
+            id,
+            first_name,
+            last_name,
+            gmail,
+            phone,
+            is_blocked
+        FROM 
+            customerss 
+        WHERE 
+            deleted_at = 0` + filter
 
+	rows, err := c.db.Query(query)
 	if err != nil {
 		return resp, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
+		var customer model.Customers
+		var order model.GetOrder
+		var orders model.GetAllOrder
+		var updatedAt sql.NullString
 
-		var (
-			customerr = model.Customers{}
-			update    sql.NullString
-		)
-
-		if err := rows.Scan(
-
+		err := rows.Scan(
 			&resp.Count,
-			&customerr.Id,
-			&customerr.First_name,
-			&customerr.Last_name,
-			&customerr.Gmail,
-			&customerr.Phone,
-			&customerr.Is_blocked,
-			&customerr.Created_at,
-			&update); err != nil {
-			fmt.Println("error while scaning all infos", err)
+			&customer.Id,
+			&customer.First_name,
+			&customer.Last_name,
+			&customer.Gmail,
+			&customer.Phone,
+			&customer.Is_blocked,
+		)
+		if err != nil {
+			fmt.Println("error while scanning customer info: ", err)
 			return resp, err
 		}
-		customerr.Updated_at = pkg.NullStringToString(update)
-		resp.Customers = append(resp.Customers, customerr)
 
+		query := `
+            SELECT 
+			count(id) OVER(),
+			id,
+                from_date,
+                to_date,
+                status,
+                payment_status,
+                created_at,
+                updated_at
+            FROM 
+                orrders 
+            WHERE 
+                customer_id = $1`
+
+		orderRows, err := c.db.Query(query, customer.Id)
+		if err != nil {
+			fmt.Println("error while querying orders: ", err)
+			return resp, err
+		}
+		defer orderRows.Close()
+
+		for orderRows.Next() {
+			err := orderRows.Scan(
+				&orders.Count,
+				&order.Id,
+				&order.FromDate,
+				&order.ToDate,
+				&order.Status,
+				&order.Paid,
+				&order.Created_at,
+				&updatedAt,
+			)
+			if err != nil {
+				fmt.Println("error while scanning order info: ", err)
+				return resp, err
+			}
+			order.Updated_at = pkg.NullStringToString(updatedAt)
+			customer.Orders = append(customer.Orders, order)
+		}
+		if err := orderRows.Err(); err != nil {
+			fmt.Println("error while iterating over order rows: ", err)
+			return resp, err
+		}
+
+		resp.Customers = append(resp.Customers, customer)
 	}
-	return resp, nil
+	if err := rows.Err(); err != nil {
+		fmt.Println("error while iterating over rows: ", err)
+		return resp, err
+	}
 
+	return resp, nil
 }
 
-func (c *customerRepo) Getbyid(id string) (model.Customers, error) {
+func (c *customerRepo) GetByIDCustomer(id string) (model.Customers, error) {
 
-	fmt.Println("hey mann")
-	custommer := model.Customers{}
-	if err := c.db.QueryRow(`SELECT 
-	id ,
-	first_name, 
-	last_name ,
-	gmail, 
-	phone,
-    is_blocked
-	from customerss where id=$1`, id).Scan(
+	query := `SELECT 
+	count(id) OVER(),
+        id,
+        first_name,
+        last_name,
+        gmail,
+        phone,
+        is_blocked
+        FROM customerss WHERE id=$1 AND deleted_at=0`
 
-		&custommer.Id,
-		&custommer.First_name,
-		&custommer.Last_name,
-		&custommer.Gmail,
-		&custommer.Phone,
-		&custommer.Is_blocked,
-	); err != nil {
+	row := c.db.QueryRow(query, id)
 
+	customer := model.Customers{
+		Orders: []model.GetOrder{},
+	}
+
+	err := row.Scan(
+
+		&customer.Id,
+		&customer.First_name,
+		&customer.Last_name,
+		&customer.Gmail,
+		&customer.Phone,
+		&customer.Is_blocked)
+	if err != nil {
+		fmt.Println("error while getting id customer err: ", err)
+		return customer, err
+	}
+
+	query = `SELECT 
+        id,
+        from_date,
+        to_date,
+        status,
+        payment_status,
+        created_at,
+        updated_at
+        FROM orrders WHERE customer_id=$1`
+
+	rows, err := c.db.Query(query, id)
+	if err != nil {
 		return model.Customers{}, err
 	}
-	return custommer, nil
+	defer rows.Close()
 
+	for rows.Next() {
+		var order model.GetOrder
+		var updatedAt sql.NullString
+		err := rows.Scan(
+
+			&order.Id,
+			&order.FromDate,
+			&order.ToDate,
+			&order.Status,
+			&order.Paid,
+			&order.Created_at,
+			&updatedAt,
+		)
+		if err != nil {
+			fmt.Println("error while scanning getbyid: ", err)
+			return customer, err
+		}
+		order.Updated_at = pkg.NullStringToString(updatedAt)
+		customer.Orders = append(customer.Orders, order)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Println("error while iterating over rows: ", err)
+		return customer, err
+	}
+
+	return customer, nil
 }
 
-func (c *customerRepo) Delete(id string) error {
+func (c *customerRepo) getcustomerandcar(id string) (model.Customers, error) {
+
+	query := `SELECT 
+	count(id) OVER(),
+        id,
+        first_name,
+        last_name,
+        gmail,
+        phone,
+        is_blocked
+        FROM customerss WHERE id=$1 AND deleted_at=0`
+
+	row := c.db.QueryRow(query, id)
+
+	customer := model.Customers{
+		Orders: []model.GetOrder{},
+	}
+
+	err := row.Scan(
+
+		&customer.Id,
+		&customer.First_name,
+		&customer.Last_name,
+		&customer.Gmail,
+		&customer.Phone,
+		&customer.Is_blocked)
+	if err != nil {
+		fmt.Println("error while getting id customer err: ", err)
+		return customer, err
+	}
+
+	query = `SELECT 
+        id,
+        from_date,
+        to_date,
+        status,
+        payment_status,
+        created_at,
+        updated_at
+        FROM orrders WHERE customer_id=$1`
+
+	rows, err := c.db.Query(query, id)
+	if err != nil {
+		return model.Customers{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var order model.GetOrder
+		var updatedAt sql.NullString
+		err := rows.Scan(
+
+			&order.Id,
+			&order.FromDate,
+			&order.ToDate,
+			&order.Status,
+			&order.Paid,
+			&order.Created_at,
+			&updatedAt,
+		)
+		if err != nil {
+			fmt.Println("error while scanning getbyid: ", err)
+			return customer, err
+		}
+		order.Updated_at = pkg.NullStringToString(updatedAt)
+		customer.Orders = append(customer.Orders, order)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Println("error while iterating over rows: ", err)
+		return customer, err
+	}
+
+	return customer, nil
+}
+func (c *customerRepo) DeleteCustomer(id string) error {
 
 	query := `UPDATE customerss set 
 	deleted_at=date_part('epoch',CURRENT_TIMESTAMP)::int

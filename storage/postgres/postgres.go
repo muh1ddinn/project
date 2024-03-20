@@ -1,4 +1,4 @@
-package storage
+package postgres
 
 import (
 	"cars_with_sql/config"
@@ -13,7 +13,7 @@ type Store struct {
 	DB *sql.DB
 }
 
-func Neww(cfg config.Config) (storage.IStorage, error) {
+func New(cfg config.Config) (storage.IStorage, error) {
 	url := fmt.Sprintf(`host=%s port=%v user=%s password=%s database=%s sslmode=disable`,
 		cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresUser, cfg.PostgresPassword, cfg.PostgresDatabase)
 
@@ -37,7 +37,13 @@ func (s Store) Car() storage.ICarstorage {
 }
 
 func (s Store) Customer() storage.ICustomerStorage {
-	NewCustomer := (s.DB)
+	NewCustomer := Newcustomer(s.DB)
 
 	return &NewCustomer
+}
+
+func (s Store) Order() storage.Iorderstorage {
+	Neworder := Neworder(s.DB)
+
+	return &Neworder
 }

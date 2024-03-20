@@ -1,7 +1,7 @@
-package controller
+package handler
 
 import (
-	model "cars_with_sql/models"
+	model "cars_with_sql/api /models"
 	"cars_with_sql/pkg/check"
 	"encoding/json"
 	"fmt"
@@ -10,36 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (c Controller) Car(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		c.CreateCars(w, r)
-	case http.MethodGet:
-		values := r.URL.Query()
-		_, ok := values["id"]
-		if !ok {
-			c.GetAllCars(w, r)
-		}
-	case http.MethodPut:
-		values := r.URL.Query()
-		_, ok := values["id"]
-		if ok {
-			c.UpdateCars(w, r)
-		}
-
-	case http.MethodDelete:
-		values := r.URL.Query()
-		_, ok := values["id"]
-		if ok {
-			c.DeleteCar(w, r)
-		}
-
-	default:
-		handleResponse(w, http.StatusMethodNotAllowed, "method not allowed")
-	}
-}
-
-func (c Controller) CreateCars(w http.ResponseWriter, r *http.Request) {
+func (h Handler) CreateCars(w http.ResponseWriter, r *http.Request) {
 
 	car := model.Car{}
 
@@ -66,42 +37,43 @@ func (c Controller) CreateCars(w http.ResponseWriter, r *http.Request) {
 
 }
 
+/*
 func (c Controller) UpdateCars(w http.ResponseWriter, r *http.Request) {
 
-	car := model.Car{}
+		car := model.Car{}
 
-	if err := json.NewDecoder(r.Body).Decode(&car); err != nil {
-		errStr := fmt.Sprintf("error while decoding request body,err:%v\n", err)
-		fmt.Println(errStr)
-		handleResponse(w, http.StatusBadRequest, errStr)
-		return
+		if err := json.NewDecoder(r.Body).Decode(&car); err != nil {
+			errStr := fmt.Sprintf("error while decoding request body,err:%v\n", err)
+			fmt.Println(errStr)
+			handleResponse(w, http.StatusBadRequest, errStr)
+			return
+		}
+
+		if err := check.ValidateCarYear(car.Year); err != nil {
+			fmt.Println("error while validating year: ", car.Year)
+			handleResponse(w, http.StatusBadRequest, err)
+			return
+		}
+		car.Id = r.URL.Query().Get("id")
+
+		err := uuid.Validate(car.Id)
+		if err != nil {
+			fmt.Println("error while validating, err: ", err)
+			handleResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		id, err := c.Store.Car().(car)
+		if err != nil {
+			fmt.Println("error while creating car, err: ", err)
+			handleResponse(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		handleResponse(w, http.StatusOK, id)
 	}
-
-	if err := check.ValidateCarYear(car.Year); err != nil {
-		fmt.Println("error while validating year: ", car.Year)
-		handleResponse(w, http.StatusBadRequest, err)
-		return
-	}
-	car.Id = r.URL.Query().Get("id")
-
-	err := uuid.Validate(car.Id)
-	if err != nil {
-		fmt.Println("error while validating, err: ", err)
-		handleResponse(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	id, err := c.Store.Car().UpdateCar(car)
-	if err != nil {
-		fmt.Println("error while creating car, err: ", err)
-		handleResponse(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	handleResponse(w, http.StatusOK, id)
-}
-
-func (c Controller) GetAllCars(w http.ResponseWriter, r *http.Request) {
+*/
+func (c Controller) GetAllCarss(w http.ResponseWriter, r *http.Request) {
 	var (
 		values  = r.URL.Query()
 		search  string
@@ -173,7 +145,7 @@ func (c Controller) GetbyCar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	carrs, err := c.Store.Car().GetByIDCar(id)
+	carrs, err := c.Store.Car().GetByidcar(id)
 	if err != nil {
 		fmt.Println("error while getting cars, err: ", err)
 		handleResponse(w, http.StatusInternalServerError, err.Error())

@@ -1,5 +1,4 @@
-package storage
-
+package postgres
 import (
 	model "cars_with_sql/models"
 	"cars_with_sql/pkg"
@@ -63,7 +62,7 @@ func (c *carRepo) Createcar(car model.Car) (string, error) {
 // /////////////////////////////////////////////////////
 // /////////////////////////////////////////////////////
 
-func (c carRepo) GetAll(req model.GetAllCarsRequest) (model.GetAllCarsResponse, error) {
+func (c carRepo) GetAllCars(req model.GetAllCarsRequest) (model.GetAllCarsResponse, error) {
 	var (
 		resp   = model.GetAllCarsResponse{}
 		filter = ""
@@ -133,7 +132,7 @@ func (c carRepo) GetByidcar(id string) ([]model.Car, error) {
     engine_cap FROM cars
     where id=$1`, id)
 	if err != nil {
-		fmt.Println("error while getting id country err: ", err)
+		fmt.Println("error while getting id car err: ", err)
 		return carrr, err
 	}
 

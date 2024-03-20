@@ -26,6 +26,37 @@ CREATE TABLE IF NOT EXISTS customerss (
  
 )
 
+CREATE TABLE IF NOT EXISTS order (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id uuid[ref:>customer_id]
+    car_id uuid[ref:>car_id]
+    from_date datetime
+    to_date datetime
+    status VARCHAR(15)
+    payment_status bool[default:true]
+    amount decimal(10,2)
+    created_at datetime[default:'NOW()']
+    updated_at datetime
+    
+ 
+)
+
+CREATE TABLE IF NOT EXISTS orrders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customer(id),
+    car_id UUID REFERENCES car(id),
+    from_date TIMESTAMP,
+    to_date TIMESTAMP,
+    status VARCHAR(15),
+    payment_status BOOLEAN DEFAULT TRUE,
+    amount DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+
+
+
 ALTER TABLE customerss
 ADD CONSTRAINT cu_customerss UNIQUE (delete_at,phone);
 
